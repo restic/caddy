@@ -8,8 +8,8 @@ root empty_www/
 # this line assumes all requests are protected
 basicauth / user pass
 
-# enable restic for all requests, and store repos in /mnt/backup
-restic / /home/matt/mybackups
+# enable restic for all requests, and store repos in /home/me/mybackups
+restic / /home/me/mybackups
 
 # All valid restic syntaxes:
 #
