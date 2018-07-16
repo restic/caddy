@@ -16,12 +16,14 @@ func init() {
 func setup(c *caddy.Controller) error {
 	var basePath string
 
+	restConfig := restserver.Server{}
+
 	for c.Next() {
 		if c.NextArg() {
 			basePath = c.Val()
 		}
 		if c.NextArg() {
-			restserver.Config.Path = c.Val()
+			restConfig.Path = c.Val()
 		}
 		if c.NextArg() {
 			return c.ArgErr()
@@ -32,15 +34,15 @@ func setup(c *caddy.Controller) error {
 		basePath = "/"
 	}
 
-	cfg := httpserver.GetConfig(c)
+	httpConfig := httpserver.GetConfig(c)
 	mid := func(next httpserver.Handler) httpserver.Handler {
 		return ResticHandler{
 			Next:          next,
 			BasePath:      basePath,
-			RestServerMux: restserver.NewMux(),
+			RestServerMux: restserver.NewHandler(restConfig),
 		}
 	}
-	cfg.AddMiddleware(mid)
+	httpConfig.AddMiddleware(mid)
 
 	return nil
 }
