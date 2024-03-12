@@ -2,37 +2,68 @@ package restic
 
 import (
 	"net/http"
-	"strings"
 
-	"github.com/caddyserver/caddy/caddyhttp/httpserver"
+	"github.com/caddyserver/caddy/v2"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
+	restserver "github.com/restic/rest-server"
 )
 
-type ResticHandler struct {
-	Next          httpserver.Handler
-	BasePath      string
-	RestServerMux http.Handler
+func init() {
+	caddy.RegisterModule(ResticModule{})
 }
 
-func (h ResticHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) (int, error) {
-	if !httpserver.Path(r.URL.Path).Matches(h.BasePath) {
-		return h.Next.ServeHTTP(w, r)
-	}
+type ResticModule struct {
+	RepositoryPath   string `json:"repository_path,omitempty"`
+	AppendOnly       bool   `json:"append_only,omitempty"`
+	Debug            bool   `json:"debug,omitempty"`
+	MaxRepoSize      int64  `json:"max_repo_size,omitempty"`
+	NoVerifyUpload   bool   `json:"no_verify_upload,omitempty"`
+	PrivateRepos     bool   `json:"private_repos,omitempty"`
+	Prometheus       bool   `json:"prometheus,omitempty"`
+	PrometheusNoAuth bool   `json:"prometheus_no_auth,omitempty"`
+	HtpasswdPath     string `json:"htpasswd_path,omitempty"`
+	NoAuth           bool   `json:"no_auth,omitempty"`
 
-	// basic auth is required (some authentication is required, for obvious reasons)
-	basicAuthUser, ok := r.Context().Value(httpserver.RemoteUserCtxKey).(string)
-	if !ok || basicAuthUser == "" {
-		return http.StatusForbidden, nil
-	}
-
-	// strip the base path from the request so that the restic mux can load
-	// the repo relative to its Config.Path base path.
-	r.URL.Path = strings.TrimPrefix(r.URL.Path, h.BasePath)
-	if !strings.HasPrefix(r.URL.Path, "/") {
-		r.URL.Path = "/" + r.URL.Path
-	}
-
-	// TODO: this doesn't return values so errors may not be handled properly. Oh well.
-	h.RestServerMux.ServeHTTP(w, r)
-
-	return 0, nil
+	resticHandler http.Handler
 }
+
+func (ResticModule) CaddyModule() caddy.ModuleInfo {
+	return caddy.ModuleInfo{
+		ID:  "http.handlers.restic",
+		New: func() caddy.Module { return new(ResticModule) },
+	}
+}
+
+func (m *ResticModule) Provision(ctx caddy.Context) error {
+
+	restConfig := restserver.Server{
+		Path:             m.RepositoryPath,
+		NoAuth:           m.NoAuth,
+		HtpasswdPath:     m.HtpasswdPath,
+		AppendOnly:       m.AppendOnly,
+		Debug:            m.Debug,
+		MaxRepoSize:      m.MaxRepoSize,
+		NoVerifyUpload:   m.NoVerifyUpload,
+		PrivateRepos:     m.PrivateRepos,
+		Prometheus:       m.Prometheus,
+		PrometheusNoAuth: m.PrometheusNoAuth,
+	}
+
+	handler, err := restserver.NewHandler(&restConfig)
+	if err != nil {
+		return err
+	}
+
+	m.resticHandler = handler
+	return nil
+}
+
+func (m ResticModule) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
+	m.resticHandler.ServeHTTP(w, r)
+	return nil
+}
+
+var (
+	_ caddy.Provisioner           = (*ResticModule)(nil)
+	_ caddyhttp.MiddlewareHandler = (*ResticModule)(nil)
+)

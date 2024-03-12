@@ -1,0 +1,38 @@
+{
+	"apps": {
+		"http": {
+			"servers": {
+				"restic": {
+					"listen": [":443"],
+					"routes": [
+						{
+							"handle": [
+								{
+									"handler": "subroute",
+									"routes": [
+										{
+											"handle": [
+												{
+													"handler": "rewrite",
+                      								"strip_path_prefix": "/restic"
+												},
+												{
+													"handler": "restic",
+													"repository_path": "/path/to/your/repository"
+												}
+											]
+										}
+									]
+								}
+							],
+							"match": [
+								{"host": ["localhost"]},
+								{"path": ["/restic"]}
+							]
+						}
+					]
+				}
+			}
+		}
+	}
+}
