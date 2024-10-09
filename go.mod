@@ -1,4 +1,4 @@
-module github.com/tdralle/caddy
+module github.com/restic/caddy
 
 go 1.22.0
 
